@@ -13,10 +13,10 @@
 
 #include "mmaformatter.h"
 
-#define HAMIL_FN "new_hamil.txt"
+#define HAMIL_FN "hamil.txt"
 #define NUM_QUBITS 6
 #define NUM_PARAMS 42
-#define NUM_ITERS 1000
+#define NUM_ITERS 2000
 #define IMAG_TIME_STEP .01
 #define GRAD_TIME_STEP .03
 #define DERIV_ORDER 4
@@ -36,18 +36,10 @@ void applyAnsatz(double* params, Qureg wavef) {
     
     // must set wavef to initial state (i.e. Hartree Fock)
     initZeroState(wavef);
-    //pauliX(wavef, 1);
-    //pauliX(wavef, 2);
-    //pauliX(wavef, 4);
-    //pauliX(wavef, 5);
-    
-    //pauliX(wavef, 0);
-    
-    /*
-    pauliX(wavef, 1);
-    pauliX(wavef, 3);
-    pauliX(wavef, 4);
-    */
+	pauliX(wavef, 0);
+	pauliX(wavef, 1);
+	pauliX(wavef, 3);
+	pauliX(wavef, 4);
     
     int p=0;
     
@@ -197,8 +189,6 @@ int getPauliHamilFromFile(char *filename, double** coeffs, int*** terms, int *nu
 	while ((ch=getc(file)) != EOF)
 		if (ch == '\n')
 			*numTerms += 1;
-	
-	printf("num terms: %d\n", *numTerms);
 	
 	// collect coefficients and terms
 	rewind(file);
