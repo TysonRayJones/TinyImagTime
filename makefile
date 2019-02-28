@@ -12,7 +12,7 @@ TARGET = newtinysim
 EXE = $(TARGET)
 
 # space-separated names (no file type) of all user source files (.c or .cpp) in the root directory
-SOURCES = $(TARGET) mmaformatter
+SOURCES = $(TARGET) mmaformatter utilities
 
 # path to QuEST library from root directory
 QUEST_DIR = QuEST
