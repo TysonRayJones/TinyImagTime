@@ -12,6 +12,7 @@ typedef struct {
 	Qureg* mixedDerivs;
     Qureg hamilWavef;
     Qureg copyWavef;
+    Qureg hamilDerivWavef;
     
     gsl_matrix* imagMatrix;
 	gsl_matrix* hessMatrix;
