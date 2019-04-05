@@ -437,7 +437,7 @@ void populateMatrices(
     }
     
     // populate <dpsi/dp_i | dpsi/dp_j>
-    if (!skipImagMatrix) {
+    if (!skipImagMatrix || !skipHessMatrix) {
         for (int i=0; i < evEnv.numParams; i++) {
             for (int j=0; j < evEnv.numParams; j++) {
                 
