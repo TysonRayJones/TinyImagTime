@@ -41,6 +41,7 @@ ParamEvolEnv initParamEvolEnv(int numQubits, int numParams, QuESTEnv qEnv) {
     evEnv.numParams = numParams;
     evEnv.hamilWavef = createQureg(numQubits, qEnv);
     evEnv.copyWavef = createQureg(numQubits, qEnv);
+    evEnv.hamilDerivWavef = createQureg(numQubits, qEnv);
     evEnv.firstDerivs = malloc(numParams * sizeof *evEnv.firstDerivs);
 	evEnv.secondDerivs = malloc(numParams * sizeof *evEnv.secondDerivs);
 	evEnv.mixedDerivs = malloc(numParams*(numParams-1) * sizeof *evEnv.mixedDerivs);
@@ -62,6 +63,7 @@ ParamEvolEnv initParamEvolEnv(int numQubits, int numParams, QuESTEnv qEnv) {
 void closeParamEvolEnv(ParamEvolEnv evEnv, QuESTEnv qEnv) {
     destroyQureg(evEnv.hamilWavef, qEnv);
     destroyQureg(evEnv.copyWavef, qEnv);
+    destroyQureg(evEnv.hamilDerivWavef, qEnv);
     for (int p=0; p < evEnv.numParams; p++) {
         destroyQureg(evEnv.firstDerivs[p], qEnv);
 		destroyQureg(evEnv.secondDerivs[p], qEnv);
@@ -454,22 +456,32 @@ void populateMatrices(
         }
     }
 	
-	// populate Hessian
+	// populate Hessian, H_ij = <d^2 psi/dpi dpj | H |psi> + <d psi/dpi | H |d psi/dpj>
     if (!skipHessMatrix) {
 		
 		// set diagonals to second derivs
 		for (int i=0; i < evEnv.numParams; i++) {
-			Complex prod = calcInnerProduct(evEnv.secondDerivs[i],evEnv.hamilWavef);
-			double comp = prod.real;
+            
+            applyHamiltonian(hamil, evEnv.firstDerivs[i], evEnv.hamilDerivWavef);
+            
+			double comp = (
+                calcInnerProduct(evEnv.secondDerivs[i], evEnv.hamilWavef).real +
+                calcInnerProduct(evEnv.firstDerivs[i], evEnv.hamilDerivWavef).real );
 			gsl_matrix_set(evEnv.hessMatrix, i, i, comp);
+            
+            
 		}
 				
 		// set off-diagonals to mixed derivs 
 		int ind=0;
 	    for (int i=0; i < evEnv.numParams; i++) {
 	        for (int j=i+1; j < i; j++) {
-	            Complex prod = calcInnerProduct(evEnv.mixedDerivs[ind++], evEnv.hamilWavef);
-				double comp = prod.real;
+                
+                applyHamiltonian(hamil, evEnv.firstDerivs[j], evEnv.hamilDerivWavef);
+                
+	            double comp = (
+                    calcInnerProduct(evEnv.mixedDerivs[ind++], evEnv.hamilWavef).real +
+                    calcInnerProduct(evEnv.firstDerivs[i], evEnv.hamilDerivWavef).real );
 	            gsl_matrix_set(evEnv.hessMatrix, i, j, comp); 
 	            gsl_matrix_set(evEnv.hessMatrix, j, i, comp);
 	        }
