@@ -176,7 +176,7 @@ void populateDerivs(
 	
 	int ind=0;
     for (int paramInd1=0; paramInd1 < evEnv.numParams; paramInd1++) {
-        for (int paramInd2=paramInd1+1; paramInd2 < paramInd1; paramInd2++) {
+        for (int paramInd2=paramInd1+1; paramInd2 < evEnv.numParams; paramInd2++) {
 			
 			// clear deriv 
 			deriv = evEnv.mixedDerivs[ind];
@@ -437,7 +437,7 @@ void populateMatrices(
     }
     
     // populate <dpsi/dp_i | dpsi/dp_j>
-    if (!skipImagMatrix || !skipHessMatrix) {
+    if (!skipImagMatrix) {
         for (int i=0; i < evEnv.numParams; i++) {
             for (int j=0; j < evEnv.numParams; j++) {
                 
@@ -475,7 +475,7 @@ void populateMatrices(
 		// set off-diagonals to mixed derivs 
 		int ind=0;
 	    for (int i=0; i < evEnv.numParams; i++) {
-	        for (int j=i+1; j < i; j++) {
+	        for (int j=i+1; j < evEnv.numParams; j++) {
                 
                 applyHamiltonian(hamil, evEnv.firstDerivs[j], evEnv.hamilDerivWavef);
                 
