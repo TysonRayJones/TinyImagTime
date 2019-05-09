@@ -81,147 +81,18 @@ void closeParamEvolEnv(ParamEvolEnv evEnv, QuESTEnv qEnv) {
 }
 
 void populateDerivs(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg)
-) {
-	Qureg deriv;
-	double* coeffs;
-    
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int)
+) {    
     for (int p=0; p < evEnv.numParams; p++) {
-		double origParam = params[p];
-		
-		/*
-		FIRST DERIVS 
-		*/
-        
-        // clear deriv
-        deriv = evEnv.firstDerivs[p];
-        for (long long int i=0; i < deriv.numAmpsTotal; i++) {
-            deriv.stateVec.real[i] = 0;
-            deriv.stateVec.imag[i] = 0;
-        }
-        
-    	// approx deriv with finite difference
-    	coeffs = FIRST_DERIV_FINITE_DIFFERENCE_COEFFS[DERIV_ORDER - 1];
-        
-    	// repeatly add c*psi(p+ndp) - c*psi(p-ndp) to deriv
-    	for (int step=1; step <= DERIV_ORDER; step++) {
-            for (int sign = -1; sign <= 1; sign+=2) {
-                params[p] = origParam + sign*step*DERIV_STEP_SIZE;
-                ansatz(params, evEnv.copyWavef);
-                
-                for (long long int i=0; i < deriv.numAmpsTotal; i++) {
-                    deriv.stateVec.real[i] += (sign * coeffs[step-1] * 
-                        getRealAmp(evEnv.copyWavef, i));
-                    deriv.stateVec.imag[i] += (sign * coeffs[step-1] * 
-                        getImagAmp(evEnv.copyWavef, i));
-                }
-            }
-        }
-        
-        // divide by the step size
-        for (long long int i=0; i < deriv.numAmpsTotal; i++) {
-            deriv.stateVec.real[i] /= DERIV_STEP_SIZE;
-            deriv.stateVec.imag[i] /= DERIV_STEP_SIZE;
-        }
-		
-		// restore the parameter
-        params[p] = origParam;   
-		
-		/*
-		SECOND DERIVS 
-		*/
-		
-		// clear deriv
-        deriv = evEnv.secondDerivs[p];
-        for (long long int i=0; i < deriv.numAmpsTotal; i++) {
-            deriv.stateVec.real[i] = 0;
-            deriv.stateVec.imag[i] = 0;
-        }
-		
-		coeffs = SECOND_DERIV_FINITE_DIFFERENCE_COEFFS[DERIV_ORDER - 1];
-		
-		for (int step=0; step <= DERIV_ORDER; step++) {
-			
-			params[p] = origParam + step*DERIV_STEP_SIZE;
-			ansatz(params, evEnv.copyWavef);
-			for (long long int i=0LL; i < deriv.numAmpsTotal; i++) {
-				deriv.stateVec.real[i] += coeffs[step] * getRealAmp(evEnv.copyWavef, i);
-				deriv.stateVec.imag[i] += coeffs[step] * getImagAmp(evEnv.copyWavef, i);
-			}
-			
-			if (step == 0)
-				continue;
-				
-			params[p] = origParam - step*DERIV_STEP_SIZE;
-			ansatz(params, evEnv.copyWavef);
-			for (long long int i=0LL; i < deriv.numAmpsTotal; i++) {
-				deriv.stateVec.real[i] += coeffs[step] * getRealAmp(evEnv.copyWavef, i);
-				deriv.stateVec.imag[i] += coeffs[step] * getImagAmp(evEnv.copyWavef, i);
-			}
-		}
-		
-		// divide by the step size
-		for (long long int i=0; i < deriv.numAmpsTotal; i++) {
-			deriv.stateVec.real[i] /= (DERIV_STEP_SIZE * DERIV_STEP_SIZE);
-			deriv.stateVec.imag[i] /= (DERIV_STEP_SIZE * DERIV_STEP_SIZE);
-		}
-		
-		// restore the parameter
-        params[p] = origParam;   
-    }
-	
-	/* 
-	MIXED DERIVS
-	*/
-	
-	int ind=0;
-    for (int paramInd1=0; paramInd1 < evEnv.numParams; paramInd1++) {
-        for (int paramInd2=paramInd1+1; paramInd2 < evEnv.numParams; paramInd2++) {
-			
-			// clear deriv 
-			deriv = evEnv.mixedDerivs[ind];
-			for (long long int i=0; i < deriv.numAmpsTotal; i++) {
-				deriv.stateVec.real[i] = 0;
-				deriv.stateVec.imag[i] = 0;
-			}
-			
-			coeffs = FIRST_DERIV_FINITE_DIFFERENCE_COEFFS[DERIV_ORDER - 1];
-			double origParam1 = params[paramInd1];
-    		double origParam2 = params[paramInd2];
-			
-			// repeatly add c*psi(p+ndp) - c*psi(p-ndp) to deriv
-			for (int step1=1; step1 <= DERIV_ORDER; step1++) {
-				for (int sign1 = -1; sign1 <= 1; sign1+=2) {
-					params[paramInd1] = origParam1 + sign1*step1*DERIV_STEP_SIZE;
-		            
-		        	for (int step2=1; step2 <= DERIV_ORDER; step2++) {
-		        		for (int sign2 = -1; sign2 <= 1; sign2+=2) {
-		        			params[paramInd2] = origParam2 + sign2*step2*DERIV_STEP_SIZE;
-		            
-					        ansatz(params, evEnv.copyWavef);
-							for (long long int i=0LL; i < deriv.numAmpsTotal; i++) {
-								deriv.stateVec.real[i] += sign1*coeffs[step1-1] * sign2*coeffs[step2-1] * getRealAmp(evEnv.copyWavef, i);
-								deriv.stateVec.imag[i] += sign1*coeffs[step1-1] * sign2*coeffs[step2-1] * getImagAmp(evEnv.copyWavef, i);
-							}
-		                }
-		            }
-				}
-			}
-			
-			// divide by the step size
-			for (long long int i=0; i < deriv.numAmpsTotal; i++) {
-				deriv.stateVec.real[i] /= (DERIV_STEP_SIZE * DERIV_STEP_SIZE);
-				deriv.stateVec.imag[i] /= (DERIV_STEP_SIZE * DERIV_STEP_SIZE);
-			}
-
-			// reset the original param values
-			params[paramInd1] = origParam1; 
-			params[paramInd2] = origParam2;  
-			
-			// go to next deriv
-			ind++;
-		}
+		ansatz(params, evEnv.firstDerivs[p], p, -1); // first deriv 
+		ansatz(params, evEnv.secondDerivs[p], p, p); // second deriv 
 	}
+	
+	// mixed derivs 
+	int ind=0;
+    for (int paramInd1=0; paramInd1 < evEnv.numParams; paramInd1++)
+        for (int paramInd2=paramInd1+1; paramInd2 < evEnv.numParams; paramInd2++)
+			ansatz(params, evEnv.mixedDerivs[ind++], paramInd1, paramInd2);
 }
 
 Complex getConj(Complex a) {
@@ -419,14 +290,14 @@ void freeHamil(Hamiltonian hamil, QuESTEnv env) {
 }
 
 void populateMatrices(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg),
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int),
     Hamiltonian hamil, int skipImagMatrix, int skipHessMatrix
 ) {
     // compute |dpsi/dp>, |d^2psi/dp^2>, |d^2psi/dp1dp2>
     populateDerivs(evEnv, params, ansatz);
     
     // compute H|psi>
-    ansatz(params, evEnv.copyWavef);
+    ansatz(params, evEnv.copyWavef, -1, -1);
     applyHamiltonian(hamil, evEnv.copyWavef, evEnv.hamilWavef);
 	
 	// populate <dpsi/dp_i|H|psi>
@@ -502,7 +373,7 @@ double solveViaTSVD(ParamEvolEnv evEnv, gsl_matrix* coeffMatr) {
 }
 
 void evolveParamsImagTime(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg), 
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), 
 	Hamiltonian hamil, double timestep
 ) {    
     populateMatrices(evEnv, params, ansatz, hamil, 0, 1);
@@ -512,7 +383,7 @@ void evolveParamsImagTime(
 }
 
 void evolveParamsGradDesc(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg),
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int),
 	Hamiltonian hamil, double timestep
 ) {   
     populateMatrices(evEnv, params, ansatz, hamil, 1, 1);
@@ -521,7 +392,7 @@ void evolveParamsGradDesc(
 }
 
 void evolveParamsHessian(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg),
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int),
 	Hamiltonian hamil, double timestep
 ) {
 	populateMatrices(evEnv, params, ansatz, hamil, 1, 0);

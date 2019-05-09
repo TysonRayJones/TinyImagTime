@@ -48,15 +48,15 @@ void freeHamil(Hamiltonian hamil, QuESTEnv env);
 
 
 void evolveParamsImagTime(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg), Hamiltonian hamil, double timestep
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), Hamiltonian hamil, double timestep
 );
 
 void evolveParamsGradDesc(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg), Hamiltonian hamil, double timestep
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), Hamiltonian hamil, double timestep
 );
 
 void evolveParamsHessian(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg), Hamiltonian hamil, double timestep
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), Hamiltonian hamil, double timestep
 );
 
 double getExpectedEnergy(Hamiltonian hamil, Qureg wavef, ParamEvolEnv evEnv);
