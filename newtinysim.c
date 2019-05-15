@@ -166,19 +166,19 @@ void ansatz(double* params, Qureg wavef, int deriv1, int deriv2) {
 	for (int d=0; d<depth; d++) {
 		for (int q=0; q<NUM_QUBITS; q++)
 				if (q%2 == 0) {
-					rYX(q, q+1, -1*params[p], wavef, isDerivParam[p]); p++;
+					rYX(q, q+1, params[p], wavef, isDerivParam[p]); p++;
 					rXY(q, q+1, params[p], wavef, isDerivParam[p]); p++;
 					rZZ(q, q+1, params[p], wavef, isDerivParam[p]); p++;
-					rYY(q, q+1, -1*params[p], wavef, isDerivParam[p]); p++;
+					rYY(q, q+1, params[p], wavef, isDerivParam[p]); p++;
 					rXX(q, q+1, params[p], wavef, isDerivParam[p]); p++;
 				}
 
 		for (int q=0; q<(NUM_QUBITS-1); q++)
 			if (q%2 == 1) {
-				rYX(q, q+1, -1*params[p], wavef, isDerivParam[p]); p++;
+				rYX(q, q+1, params[p], wavef, isDerivParam[p]); p++;
 				rXY(q, q+1, params[p], wavef, isDerivParam[p]); p++;
 				rZZ(q, q+1, params[p], wavef, isDerivParam[p]); p++;
-				rYY(q, q+1, -1*params[p], wavef, isDerivParam[p]); p++;
+				rYY(q, q+1, params[p], wavef, isDerivParam[p]); p++;
 				rXX(q, q+1, params[p], wavef, isDerivParam[p]); p++;
 			}
 	}
