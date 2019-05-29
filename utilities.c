@@ -14,27 +14,7 @@
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_multifit.h>
 
-#define DERIV_ORDER 4
-#define DERIV_STEP_SIZE 1E-5
 #define TSVD_TOLERANCE 1E-5
-
-
-/* psi(x+nh) for n > 0, or -1*(that for n < 0) */
-double FIRST_DERIV_FINITE_DIFFERENCE_COEFFS[4][4] = {
-	{1/2.0},
-	{2/3.0, -1/12.0},
-	{3/4.0, -3/20.0, 1/60.0},
-	{4/5.0, -1/5.0, 4/105.0, -1/280.0}
-};
-
-/* psi(x+nh) for n >= 0 (same for n < 0) */
-double SECOND_DERIV_FINITE_DIFFERENCE_COEFFS[4][5] = {
-    {-2.0, 1.0},
-    {-5/2.0, 4/3.0, -1/12.0},
-    {-49/18.0, 3/2.0, -3/20.0, 1/90.0},
-    {-205/72.0, 8/5.0, -1/5.0, 8/315.0, -1/560.0}
-};
-
 
 ParamEvolEnv initParamEvolEnv(int numQubits, int numParams, QuESTEnv qEnv) {
     ParamEvolEnv evEnv;
