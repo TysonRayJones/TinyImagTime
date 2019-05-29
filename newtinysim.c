@@ -36,16 +36,36 @@
 #define OUT_PREC 10
 #define PI 3.14159265359
 
+void derivRotateZ(Qureg wavef, int qb, qreal angle, int isDeriv) {
+	rotateZ(wavef, qb, angle);
+	if (isDeriv == 1 || isDeriv == 2)
+		pauliZ(wavef, qb); // needs -i/2 global factor 
+	if (isDeriv == 2)
+		pauliZ(wavef, qb); // needs -1/4 global factor
+}
+void derivRotateX(Qureg wavef, int qb, qreal angle, int isDeriv) {
+	rotateX(wavef, qb, angle);
+	if (isDeriv == 1 || isDeriv == 2)
+		pauliX(wavef, qb); // needs -i/2 global factor 
+	if (isDeriv == 2)
+		pauliX(wavef, qb); // needs -1/4 global factor
+}
+void derivRotateY(Qureg wavef, int qb, qreal angle, int isDeriv) {
+	rotateY(wavef, qb, angle);
+	if (isDeriv == 1 || isDeriv == 2)
+		pauliY(wavef, qb); // needs -i/2 global factor 
+	if (isDeriv == 2)
+		pauliY(wavef, qb); // needs -1/4 global factor
+}
 
-
-void rXX(int q1, int q2, double angle, Qureg wavef)
+void rXX(int q1, int q2, double angle, Qureg wavef, int isDeriv)
 	{
 		// Applies exp(-theta/2 XX).
 		hadamard(wavef, q1);
 		hadamard(wavef, q2);
 
 		controlledNot(wavef, q1, q2);
-		rotateZ(wavef, q2, angle);
+		derivRotateZ(wavef, q2, angle, isDeriv);
 		controlledNot(wavef, q1, q2);
 
 		hadamard(wavef, q1);
@@ -53,14 +73,14 @@ void rXX(int q1, int q2, double angle, Qureg wavef)
 	}
 
 
-void rYY(int q1, int q2, double angle, Qureg wavef)
+void rYY(int q1, int q2, double angle, Qureg wavef, int isDeriv)
 	{
 		// Applies exp(-theta/2 YY).
 		rotateX(wavef, q1, PI/2);
 		rotateX(wavef, q2, PI/2);
 
 		controlledNot(wavef, q1, q2);
-		rotateZ(wavef, q2, angle);
+		derivRotateZ(wavef, q2, angle, isDeriv);
 		controlledNot(wavef, q1, q2);
 
 		rotateX(wavef, q1, -PI/2);
@@ -68,14 +88,14 @@ void rYY(int q1, int q2, double angle, Qureg wavef)
 	}
 
 
-void rXY(int q1, int q2, double angle, Qureg wavef)
+void rXY(int q1, int q2, double angle, Qureg wavef, int isDeriv)
 	{
 		// Applies exp(-theta/2 XY).
 		hadamard(wavef, q1);
 		rotateX(wavef, q2, PI/2);
 
 		controlledNot(wavef, q1, q2);
-		rotateZ(wavef, q2, angle);
+		derivRotateZ(wavef, q2, angle, isDeriv);
 		controlledNot(wavef, q1, q2);
 
 		hadamard(wavef, q1);
@@ -83,14 +103,14 @@ void rXY(int q1, int q2, double angle, Qureg wavef)
 	}
 
 
-void rYX(int q1, int q2, double angle, Qureg wavef)
+void rYX(int q1, int q2, double angle, Qureg wavef, int isDeriv)
 	{
 		// Applies exp(-theta/2 YX).
 		hadamard(wavef, q2);
 		rotateX(wavef, q1, PI/2);
 
 		controlledNot(wavef, q1, q2);
-		rotateZ(wavef, q2, angle);
+		derivRotateZ(wavef, q2, angle, isDeriv);
 		controlledNot(wavef, q1, q2);
 
 		hadamard(wavef, q2);
@@ -98,64 +118,88 @@ void rYX(int q1, int q2, double angle, Qureg wavef)
 	}
 
 
-void rZZ(int q1, int q2, double angle, Qureg wavef)
+void rZZ(int q1, int q2, double angle, Qureg wavef, int isDeriv)
 	{
 		// Applies exp(-theta/2 ZZ).
 
 		controlledNot(wavef, q1, q2);
-		rotateZ(wavef, q2, angle);
+		derivRotateZ(wavef, q2, angle, isDeriv);
 		controlledNot(wavef, q1, q2);
 	}
 
 
 
 
-
-void ansatz(double* params, Qureg wavef) {
+/* produces the ansatz state, where parameters with indices deriv1 and deriv2 
+ * having their first derivatives taken. These are =-1 if the derivative is not 
+ * to be applied.
+ */
+void ansatz(double* params, Qureg wavef, int deriv1, int deriv2) {
 
     // must set wavef to initial state (i.e. Hartree Fock)
     initZeroState(wavef);
 
-		// Hartree Fock state.
-		pauliX(wavef, 0);
-		pauliX(wavef, 1);
+	// Hartree Fock state.
+	pauliX(wavef, 0);
+	pauliX(wavef, 1);
+	
+	// flags to indicate whether params are under derivatives 
+	int isDerivParam[NUM_PARAMS];
+	for (int j=0; j < NUM_PARAMS; j++) 
+		if (deriv1==j && deriv2==j)
+			isDerivParam[j] = 2;
+		else if (deriv1==j || deriv2==j)
+			isDerivParam[j] = 1;
+		else 
+			isDerivParam[j] = 0;
 
     int p=0;
+	
+	for (int q=0; q<NUM_QUBITS; q++) {
+		derivRotateZ(wavef, q, params[p], isDerivParam[p]); p++;
+		derivRotateY(wavef, q, params[p], isDerivParam[p]); p++;
+		derivRotateX(wavef, q, params[p], isDerivParam[p]); p++;
+		derivRotateZ(wavef, q, params[p], isDerivParam[p]); p++;
+	}
 
-
+	int depth = 3;
+	for (int d=0; d<depth; d++) {
 		for (int q=0; q<NUM_QUBITS; q++)
-			{
-			rotateZ(wavef, q, params[p++]);
-			rotateY(wavef, q, params[p++]);
-			rotateX(wavef, q, params[p++]);
-			rotateZ(wavef, q, params[p++]);
+				if (q%2 == 0) {
+					rYX(q, q+1, params[p], wavef, isDerivParam[p]); p++;
+					rXY(q, q+1, params[p], wavef, isDerivParam[p]); p++;
+					rZZ(q, q+1, params[p], wavef, isDerivParam[p]); p++;
+					rYY(q, q+1, params[p], wavef, isDerivParam[p]); p++;
+					rXX(q, q+1, params[p], wavef, isDerivParam[p]); p++;
+				}
+
+		for (int q=0; q<(NUM_QUBITS-1); q++)
+			if (q%2 == 1) {
+				rYX(q, q+1, params[p], wavef, isDerivParam[p]); p++;
+				rXY(q, q+1, params[p], wavef, isDerivParam[p]); p++;
+				rZZ(q, q+1, params[p], wavef, isDerivParam[p]); p++;
+				rYY(q, q+1, params[p], wavef, isDerivParam[p]); p++;
+				rXX(q, q+1, params[p], wavef, isDerivParam[p]); p++;
 			}
-
-
-		int depth = 3;
-		for (int d=0; d<depth; d++)
-		{
-			for (int q=0; q<NUM_QUBITS; q++)
-					if (q%2 == 0)
-						{
-						rYX(q, q+1, -1*params[p++], wavef);
-						rXY(q, q+1, params[p++], wavef);
-						rZZ(q, q+1, params[p++], wavef);
-						rYY(q, q+1, -1*params[p++], wavef);
-						rXX(q, q+1, params[p++], wavef);
-						}
-
-			for (int q=0; q<(NUM_QUBITS-1); q++)
-					if (q%2 == 1)
-						{
-							rYX(q, q+1, -1*params[p++], wavef);
-							rXY(q, q+1, params[p++], wavef);
-							rZZ(q, q+1, params[p++], wavef);
-							rYY(q, q+1, -1*params[p++], wavef);
-							rXX(q, q+1, params[p++], wavef);
-						}
+	}
+	
+	// apply factors
+	if (deriv1 != -1 && deriv2 == -1) {
+		// (-i/2) (re + i im) = im/2 + -re/2 i
+		for (int j=0; j < wavef.numAmpsTotal; j++) {
+			qreal re = wavef.stateVec.real[j];
+			qreal im = wavef.stateVec.imag[j];
+			wavef.stateVec.real[j] =  im / 2.0;
+			wavef.stateVec.imag[j] = -re / 2.0;
 		}
-
+	}
+	if (deriv1 != -1 && deriv2 != -1) {
+		// (-i/2)*(-i/2) =  -1/4
+		for (int j=0; j < wavef.numAmpsTotal; j++) {
+			wavef.stateVec.real[j] *= -0.25;
+			wavef.stateVec.imag[j] *= -0.25;
+		}
+	}
 }
 
 
@@ -192,7 +236,7 @@ int main(int narg, char *varg[]) {
 
     double imagParams[NUM_PARAMS];
     double gradParams[NUM_PARAMS];
-		double hessParams[NUM_PARAMS];
+	double hessParams[NUM_PARAMS];
     for (int p=0; p < NUM_PARAMS; p++) {
         imagParams[p] = initParams[p];
         gradParams[p] = initParams[p];
@@ -200,18 +244,18 @@ int main(int narg, char *varg[]) {
     }
 
 	// initial energy
-    ansatz(imagParams, paramState);
+    ansatz(imagParams, paramState, -1, -1);
     double energy = getExpectedEnergy(hamil, paramState, evolver);
     printf("Initial energy: %lf\n\n", energy); // -7.86
 
 	// printing ansatz circuit
-	/*
+	
 	startRecordingQASM(paramState);
-	ansatz(imagParams, paramState);
+	ansatz(imagParams, paramState, -1, -1);
 	stopRecordingQASM(paramState);
 	printRecordedQASM(paramState);
 	printf("\n\n");
-*/
+
     double imagEnergies[NUM_ITERS+1];
     double gradEnergies[NUM_ITERS+1];
 		double hessEnergies[NUM_ITERS+1];
@@ -227,15 +271,15 @@ int main(int narg, char *varg[]) {
     for (int iter=0; iter < NUM_ITERS; iter++) {
 
     	evolveParamsImagTime(evolver, imagParams, ansatz, hamil, IMAG_TIME_STEP);
-        ansatz(imagParams, paramState);
+        ansatz(imagParams, paramState, -1, -1);
         imagEnergies[iter+1] = getExpectedEnergy(hamil, paramState, evolver);
 
         evolveParamsGradDesc(evolver, gradParams, ansatz, hamil, GRAD_TIME_STEP);
-        ansatz(gradParams, paramState);
+        ansatz(gradParams, paramState, -1, -1);
         gradEnergies[iter+1] = getExpectedEnergy(hamil, paramState, evolver);
 
 		evolveParamsHessian(evolver, hessParams, ansatz, hamil, HESS_TIME_STEP);
-        ansatz(hessParams, paramState);
+        ansatz(hessParams, paramState, -1, -1);
         hessEnergies[iter+1] = getExpectedEnergy(hamil, paramState, evolver);
 
         printf("(%d/%d)\tIT: %lf\tGD: %lf\tH: %lf\n",
