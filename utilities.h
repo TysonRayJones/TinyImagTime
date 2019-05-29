@@ -32,6 +32,8 @@ typedef struct {
 	int numTerms;
 	double* termCoeffs;
 	int** terms;
+    
+    double coeffsSquaredSum;
 	
 	gsl_matrix_complex* matrix;
 	double* eigvals;
@@ -48,15 +50,18 @@ void freeHamil(Hamiltonian hamil, QuESTEnv env);
 
 
 void evolveParamsImagTime(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), Hamiltonian hamil, double timestep
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), 
+    Hamiltonian hamil, double timestep, int numShotsImag, int numShotsGrad, double decoherFac
 );
 
 void evolveParamsGradDesc(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), Hamiltonian hamil, double timestep
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), 
+    Hamiltonian hamil, double timestep, int numShots, double decoherFac
 );
 
 void evolveParamsHessian(
-    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), Hamiltonian hamil, double timestep
+    ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), 
+    Hamiltonian hamil, double timestep, int numShotsHess, int numShotsGrad, double decoherFac
 );
 
 double getExpectedEnergy(Hamiltonian hamil, Qureg wavef, ParamEvolEnv evEnv);

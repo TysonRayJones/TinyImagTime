@@ -255,6 +255,10 @@ Hamiltonian loadHamiltonian(char *filename, QuESTEnv env) {
     
     // diagonalise matrix
     hamil.eigvals = diagonaliseHamiltonianMatrix(hamil, env);
+    
+    hamil.coeffsSquaredSum = 0;
+    for (int t=0; t < hamil.numTerms; t++)
+        hamil.coeffsSquaredSum += hamil.termCoeffs[t];
 		
 	return hamil;
 }
@@ -341,6 +345,84 @@ void populateMatrices(
 }
 
 
+
+
+
+/** Effects decoherence in the circuits and shot noise in the deriv sampling by changing the matrix
+ * elements to be random samples of normal distributions. Overestimates controlled-gate shot-noise to be
+ * the same as single-qubit-gate variance. Overestimates the shot noise in the gradient vector by assuming
+ * every hamil term has inner product zero (in order to maximise the measurement variance). Effects
+ * decoherence by shrinking every expected measurement value closer to 0 (the mixed state).
+ */
+ double sampleNormalDistrib(double mean, double var) {
+    
+    // sample the the standard normal distribution via Box-Muller
+    double unif1 = rand() / (double) RAND_MAX;
+    double unif2 = rand() / (double) RAND_MAX;
+    double norm1 = sqrt(-2.0 * log(unif1)) * cos(2*M_PI*unif2);
+    
+    // sample a normal dist with new expected value and variance
+	return mean + norm1*var;
+}
+void addNoiseToGradVector(
+    ParamEvolEnv mem, double chemHamilCoeffSquaredSum, 
+    int shotNoiseNumSamples, double decoherFac
+) {
+	double oldval, mesvar, newval;
+			
+	for (int i=0; i < mem.numParams; i++) {
+		
+        // update C
+		oldval = gsl_vector_get(mem.energyGradVector, i);
+        if (shotNoiseNumSamples == 0)
+            mesvar = 0;
+        else
+            mesvar = chemHamilCoeffSquaredSum/4.0/shotNoiseNumSamples;
+		newval = sampleNormalDistrib(decoherFac * oldval, mesvar);
+		gsl_vector_set(mem.energyGradVector, i, newval);
+        
+    }
+}
+void addNoiseToImagMatrix(
+    ParamEvolEnv mem, double chemHamilCoeffSquaredSum, 
+    int shotNoiseNumSamples, double decoherFac
+) {    
+	double oldval, mesvar, newval;	
+	for (int i=0; i < mem.numParams; i++) {
+		for (int j=0; j < mem.numParams; j++) {
+            
+            // current element
+            oldval = gsl_matrix_get(mem.imagMatrix, i, j);
+            if (shotNoiseNumSamples == 0)
+                mesvar = 0;
+            else
+                mesvar = (1/16.0 - decoherFac*decoherFac * oldval*oldval)/(double)shotNoiseNumSamples;
+            newval = sampleNormalDistrib(decoherFac * oldval, mesvar);
+			gsl_matrix_set(mem.imagMatrix, i, j, newval);
+		}
+	}
+}
+void addNoiseToHessMatrix(
+    ParamEvolEnv mem, double chemHamilCoeffSquaredSum, 
+    int shotNoiseNumSamples, double decoherFac
+) {    
+	double oldval, mesvar, newval;	
+	for (int i=0; i < mem.numParams; i++) {
+		for (int j=0; j < mem.numParams; j++) {
+            
+            // current element
+            oldval = gsl_matrix_get(mem.hessMatrix, i, j);
+            if (shotNoiseNumSamples == 0)
+                mesvar = 0;
+            else
+                mesvar = (1/16.0 - decoherFac*decoherFac * oldval*oldval)/(double)shotNoiseNumSamples;
+            newval = sampleNormalDistrib(decoherFac * oldval, mesvar);
+			gsl_matrix_set(mem.hessMatrix, i, j, newval);
+		}
+	}
+}
+
+
 double solveViaTSVD(ParamEvolEnv evEnv, gsl_matrix* coeffMatr) {
     
     double residSum; 
@@ -354,9 +436,11 @@ double solveViaTSVD(ParamEvolEnv evEnv, gsl_matrix* coeffMatr) {
 
 void evolveParamsImagTime(
     ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int), 
-	Hamiltonian hamil, double timestep
+	Hamiltonian hamil, double timestep, int numShotsImag, int numShotsGrad, double decoherFac
 ) {    
     populateMatrices(evEnv, params, ansatz, hamil, 0, 1);
+    addNoiseToImagMatrix(evEnv, hamil.coeffsSquaredSum, numShotsImag, decoherFac);
+    addNoiseToGradVector(evEnv, hamil.coeffsSquaredSum, numShotsGrad, decoherFac);
     solveViaTSVD(evEnv, evEnv.imagMatrix);
     for (int p=0; p < evEnv.numParams; p++)
         params[p] += timestep * gsl_vector_get(evEnv.paramChange, p);
@@ -364,18 +448,21 @@ void evolveParamsImagTime(
 
 void evolveParamsGradDesc(
     ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int),
-	Hamiltonian hamil, double timestep
+	Hamiltonian hamil, double timestep, int numShots, double decoherFac
 ) {   
     populateMatrices(evEnv, params, ansatz, hamil, 1, 1);
+    addNoiseToGradVector(evEnv, hamil.coeffsSquaredSum, numShots, decoherFac);
     for (int p=0; p < evEnv.numParams; p++)
         params[p] += timestep * gsl_vector_get(evEnv.energyGradVector, p);
 }
 
 void evolveParamsHessian(
     ParamEvolEnv evEnv, double* params, void (*ansatz)(double*, Qureg, int, int),
-	Hamiltonian hamil, double timestep
+	Hamiltonian hamil, double timestep, int numShotsHess, int numShotsGrad, double decoherFac
 ) {
 	populateMatrices(evEnv, params, ansatz, hamil, 1, 0);
+    addNoiseToHessMatrix(evEnv, hamil.coeffsSquaredSum, numShotsHess, decoherFac);
+    addNoiseToGradVector(evEnv, hamil.coeffsSquaredSum, numShotsGrad, decoherFac);
 	solveViaTSVD(evEnv, evEnv.hessMatrix);
 	for (int p=0; p < evEnv.numParams; p++)
         params[p] += timestep * gsl_vector_get(evEnv.paramChange, p);

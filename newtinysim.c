@@ -14,27 +14,23 @@
 #define NUM_ITERS 2000
 
 // HF start point.
-#define IMAG_TIME_STEP .225
-#define GRAD_TIME_STEP 1.09
-#define HESS_TIME_STEP .0707
-#define START_PERTURB 0.01
 
+// Random start point, using HF time steps
+#define	IMAG_TIME_STEP .225
+#define	GRAD_TIME_STEP .886
+//#define	HESS_TIME_STEP .0515 
 /*
 "IMAG_TIME_STEP" -> 2.2500000000*10^-01,
-"GRAD_TIME_STEP" -> 1.0941779700*10^+00,
-"HESS_TIME_STEP" -> 7.0694117772*10^-02,
+"GRAD_TIME_STEP" -> 8.8628415570*10^-01,
+"HESS_TIME_STEP" -> 5.1536011856*10^-02,
 */
 
-/*
-// Random start point.
-#define IMAG_TIME_STEP .1
-#define GRAD_TIME_STEP 2
-#define HESS_TIME_STEP 3
 #define START_PERTURB 1
-*/
 
 #define OUT_PREC 10
 #define PI 3.14159265359
+
+
 
 void derivRotateZ(Qureg wavef, int qb, qreal angle, int isDeriv) {
 	rotateZ(wavef, qb, angle);
@@ -215,12 +211,16 @@ void ansatz(double* params, Qureg wavef, int deriv1, int deriv2) {
 
 int main(int narg, char *varg[]) {
 
-	if (narg != 3) {
-		printf("filename seed\n");
+	if (narg != 6) {
+		printf("filename seed shotsImag shotsGrad decoherFac\n");
 		exit(0);
 	}
-	char* outfn = varg[1];
-	int randSeed = atoi(varg[2]);
+	int ind=1;
+	char* outfn = varg[ind++];
+	int randSeed = atoi(varg[ind++]);
+	int numShotsImag = atoi(varg[ind++]);
+	int numShotsGrad = atoi(varg[ind++]);
+	double decoherFac = atof(varg[ind++]);
 
     QuESTEnv env = createQuESTEnv();
     Hamiltonian hamil = loadHamiltonian(HAMIL_FN, env);
@@ -236,11 +236,11 @@ int main(int narg, char *varg[]) {
 
     double imagParams[NUM_PARAMS];
     double gradParams[NUM_PARAMS];
-	double hessParams[NUM_PARAMS];
+	//	double hessParams[NUM_PARAMS];
     for (int p=0; p < NUM_PARAMS; p++) {
         imagParams[p] = initParams[p];
         gradParams[p] = initParams[p];
-				hessParams[p] = initParams[p];
+		//	hessParams[p] = initParams[p];
     }
 
 	// initial energy
@@ -249,54 +249,53 @@ int main(int narg, char *varg[]) {
     printf("Initial energy: %lf\n\n", energy); // -7.86
 
 	// printing ansatz circuit
-	
+	/*
 	startRecordingQASM(paramState);
-	ansatz(imagParams, paramState, -1, -1);
+	ansatz(imagParams, paramState);
 	stopRecordingQASM(paramState);
 	printRecordedQASM(paramState);
 	printf("\n\n");
-
+	*/
     double imagEnergies[NUM_ITERS+1];
     double gradEnergies[NUM_ITERS+1];
-		double hessEnergies[NUM_ITERS+1];
+	//	double hessEnergies[NUM_ITERS+1];
     imagEnergies[0] = energy;
     gradEnergies[0] = energy;
-		hessEnergies[0] = energy;
-
-
-
-	//for (int i=0; i < 10; i++)
-	//	evolveParamsHessian(evolver, hessParams, ansatz, hamil, .2);
+	//	hessEnergies[0] = energy;
 
     for (int iter=0; iter < NUM_ITERS; iter++) {
 
-    	evolveParamsImagTime(evolver, imagParams, ansatz, hamil, IMAG_TIME_STEP);
+        evolveParamsImagTime(evolver, imagParams, ansatz, hamil, IMAG_TIME_STEP, numShotsImag, numShotsGrad, decoherFac);
         ansatz(imagParams, paramState, -1, -1);
         imagEnergies[iter+1] = getExpectedEnergy(hamil, paramState, evolver);
 
-        evolveParamsGradDesc(evolver, gradParams, ansatz, hamil, GRAD_TIME_STEP);
+        evolveParamsGradDesc(evolver, gradParams, ansatz, hamil, GRAD_TIME_STEP, numShotsGrad, decoherFac);
         ansatz(gradParams, paramState, -1, -1);
         gradEnergies[iter+1] = getExpectedEnergy(hamil, paramState, evolver);
 
-		evolveParamsHessian(evolver, hessParams, ansatz, hamil, HESS_TIME_STEP);
-        ansatz(hessParams, paramState, -1, -1);
-        hessEnergies[iter+1] = getExpectedEnergy(hamil, paramState, evolver);
 
-        printf("(%d/%d)\tIT: %lf\tGD: %lf\tH: %lf\n",
+		// evolveParamsHessian(evolver, hessParams, ansatz, hamil, HESS_TIME_STEP);
+        // ansatz(hessParams, paramState, -1, -1);
+        // hessEnergies[iter+1] = getExpectedEnergy(hamil, paramState, evolver, 0, 0, 1);
+
+        printf("(%d/%d)\tIT: %lf\tGD: %lf\n",
 			iter, NUM_ITERS,
-			imagEnergies[iter+1], gradEnergies[iter+1], hessEnergies[iter+1]);
+			imagEnergies[iter+1], gradEnergies[iter+1]);
     }
 
 
 	// write to file
     FILE* assoc = openAssocWrite(outfn);
     writeIntToAssoc(assoc, "seed", randSeed);
+	writeDoubleToAssoc(assoc, "decoherFac", decoherFac, OUT_PREC);
+	writeIntToAssoc(assoc, "numShotsImag", numShotsImag);
+	writeIntToAssoc(assoc, "numShotsGrad", numShotsGrad);
     writeDoubleToAssoc(assoc, "IMAG_TIME_STEP", IMAG_TIME_STEP, OUT_PREC);
     writeDoubleToAssoc(assoc, "GRAD_TIME_STEP", GRAD_TIME_STEP, OUT_PREC);
-	writeDoubleToAssoc(assoc, "HESS_TIME_STEP", HESS_TIME_STEP, OUT_PREC);
+//	writeDoubleToAssoc(assoc, "HESS_TIME_STEP", HESS_TIME_STEP, OUT_PREC);
     writeDoubleArrToAssoc(assoc, "imagEnergies", imagEnergies, NUM_ITERS+1, OUT_PREC);
     writeDoubleArrToAssoc(assoc, "gradEnergies", gradEnergies, NUM_ITERS+1, OUT_PREC);
-	writeDoubleArrToAssoc(assoc, "hessEnergies", hessEnergies, NUM_ITERS+1, OUT_PREC);
+//	writeDoubleArrToAssoc(assoc, "hessEnergies", hessEnergies, NUM_ITERS+1, OUT_PREC);
 	writeDoubleArrToAssoc(assoc, "eigvals", hamil.eigvals, hamil.numAmps, OUT_PREC);
 	writeDoubleArrToAssoc(assoc, "initParams", initParams, NUM_PARAMS, OUT_PREC);
     closeAssocWrite(assoc);
